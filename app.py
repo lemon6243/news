@@ -168,7 +168,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
         # 매칭 기준 및 수집 기사 수 설정
         kw_opts_frame = ctk.CTkFrame(tab_keyword, fg_color="transparent")
-        kw_opts_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 6))
+        kw_opts_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 4))
 
         kw_mode_lbl = ctk.CTkLabel(kw_opts_frame, text="기사 매칭 기준:", font=ctk.CTkFont(size=12, weight="bold"))
         kw_mode_lbl.pack(side="left", padx=(0, 6))
@@ -176,7 +176,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
         self.match_mode = ctk.CTkSegmentedButton(
             kw_opts_frame,
             values=["부분 일치 (제목/본문에 단어 포함 시 수집)", "전체 일치"],
-            width=320
+            width=300
         )
         self.match_mode.set("부분 일치 (제목/본문에 단어 포함 시 수집)")
         self.match_mode.pack(side="left", padx=(0, 16))
@@ -187,18 +187,33 @@ class SportsCommentCrawlerGUI(_BaseClass):
         self.article_limit = ctk.CTkSegmentedButton(
             kw_opts_frame,
             values=["2개", "3개", "5개"],
-            width=150
+            width=130
         )
         self.article_limit.set("3개")
         self.article_limit.pack(side="left")
 
+        # 댓글 수집 범위 (전체 댓글 수집 여부)
+        kw_depth_frame = ctk.CTkFrame(tab_keyword, fg_color="transparent")
+        kw_depth_frame.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 4))
+
+        kw_depth_lbl = ctk.CTkLabel(kw_depth_frame, text="기사당 댓글 수집 목표:", font=ctk.CTkFont(size=12, weight="bold"), text_color="#38bdf8")
+        kw_depth_lbl.pack(side="left", padx=(0, 8))
+
+        self.comment_depth = ctk.CTkSegmentedButton(
+            kw_depth_frame,
+            values=["전체 댓글 모두 (끝까지)", "최대 300개 (권장)", "최대 100개", "최대 50개"],
+            width=480
+        )
+        self.comment_depth.set("전체 댓글 모두 (끝까지)")
+        self.comment_depth.pack(side="left")
+
         kw_info_label = ctk.CTkLabel(
             tab_keyword,
-            text="* [부분 일치 기능] 완벽히 일치하지 않더라도 기사 제목이나 원문(본문)에 키워드가 포함되어 있으면 자동으로 댓글을 추출합니다.",
+            text="* [전체 댓글 수집 지원] 첫 페이지만 긁는 것이 아니라 '더보기(Load More)' 클릭 및 API 페이징으로 기사에 등록된 수백 개의 전체 댓글을 끝까지 수집합니다.",
             text_color="#38bdf8",
             font=ctk.CTkFont(size=11)
         )
-        kw_info_label.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 6))
+        kw_info_label.grid(row=7, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 4))
 
         # -------------------------------------------------------------
         # 탭 2: 단일 기사 URL 직접 수집
@@ -271,7 +286,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
             placeholder_text="예: iframe[id*='ue-comments-iframe'], iframe[src*='coral'], iframe[title*='comentarios']",
             width=680
         )
-        self.entry_iframe.grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 8))
+        self.entry_iframe.grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 6))
 
         # 댓글 CSS 선택자
         css_label = ctk.CTkLabel(tab_direct, text="댓글 본문 CSS 선택자:")
@@ -282,7 +297,22 @@ class SportsCommentCrawlerGUI(_BaseClass):
             placeholder_text="예: .ue-c-article__comment-content, .coral-comment-content, div[class*='comment-body']",
             width=680
         )
-        self.entry_comment_css.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 8))
+        self.entry_comment_css.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 6))
+
+        # 단일 기사 댓글 수집 목표
+        direct_depth_frame = ctk.CTkFrame(tab_direct, fg_color="transparent")
+        direct_depth_frame.grid(row=7, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 6))
+
+        direct_depth_lbl = ctk.CTkLabel(direct_depth_frame, text="댓글 수집 목표 범위:", font=ctk.CTkFont(size=12, weight="bold"), text_color="#38bdf8")
+        direct_depth_lbl.pack(side="left", padx=(0, 8))
+
+        self.direct_comment_depth = ctk.CTkSegmentedButton(
+            direct_depth_frame,
+            values=["전체 댓글 모두 (끝까지)", "최대 300개 (권장)", "최대 100개", "최대 50개"],
+            width=480
+        )
+        self.direct_comment_depth.set("전체 댓글 모두 (끝까지)")
+        self.direct_comment_depth.pack(side="left")
 
         # 기본값 프리셋 주입
         self._set_preset_marca()
@@ -709,10 +739,10 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
         return gnews_url
 
-    def _extract_marca_comments_api(self, real_url):
+    def _extract_marca_comments_api(self, real_url, max_comments=5000):
         """
         Marca 전용: 기사 HTML 내 data-commentId를 파싱하여
-        공식 댓글 서비스 API(listar.html)에서 JSON 데이터를 즉시 수집합니다.
+        공식 댓글 서비스 API(listar.html)에서 순차 페이징(pagina)을 통해 기사에 등록된 전체 댓글을 누락 없이 즉시 수집합니다.
         브라우저 렌더러 지연 및 iframe 비동기 미로드를 100% 우회합니다.
         """
         try:
@@ -734,9 +764,11 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 return []
 
             cid = cids[0]
-            api_url = f"https://www.marca.com/servicios/noticias/comentarios/comunidad/listar.html?noticia={cid}&version=v2"
+            base_url = f"https://www.marca.com/servicios/noticias/comentarios/comunidad/listar.html?noticia={cid}&version=v2"
+            
+            # 첫 페이지(최신 댓글) 요청
             api_req = urllib.request.Request(
-                api_url,
+                base_url,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                     "Accept": "application/json, text/plain, */*",
@@ -745,19 +777,66 @@ class SportsCommentCrawlerGUI(_BaseClass):
             )
             with urllib.request.urlopen(api_req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                items = data.get("items", [])
-                comments = []
-                for it in items:
+
+            total_comments = data.get("total", 0)
+            items = data.get("items", [])
+            comments_map = {}
+
+            def add_items(raw_items):
+                for it in raw_items:
+                    cid_item = it.get("id")
+                    if not cid_item or cid_item in comments_map:
+                        continue
                     body = it.get("body") or it.get("cuerpo") or ""
-                    user = it.get("user") or it.get("alias") or "익명"
+                    user = it.get("user") or it.get("alias") or "스페인 팬"
                     date_str = it.get("date") or ""
+                    order_num = it.get("order", 0)
                     if len(body.strip()) >= 5:
-                        comments.append({
+                        comments_map[cid_item] = {
+                            "order": order_num,
                             "user": user,
                             "date": date_str,
                             "text": body.strip()
-                        })
-                return comments
+                        }
+
+            add_items(items)
+            self._log_output(f">> [Marca API] 기사 내 총 {total_comments}개 등록 댓글 확인 (1차 수집: {len(comments_map)}건)\n")
+
+            # 페이징 루프: min(order)를 기준으로 이전 10개씩 끝까지 또는 max_comments까지 연속 호출
+            if items and total_comments > len(comments_map):
+                current_min_order = min([it.get("order", 999999) for it in items if "order" in it])
+                page_round = 1
+                while current_min_order > 1 and len(comments_map) < max_comments and self.is_crawling:
+                    page_round += 1
+                    page_url = f"{base_url}&pagina={current_min_order}"
+                    try:
+                        p_req = urllib.request.Request(
+                            page_url,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                                "Referer": "https://www.marca.com/"
+                            }
+                        )
+                        with urllib.request.urlopen(p_req, timeout=6) as p_resp:
+                            p_data = json.loads(p_resp.read().decode("utf-8", errors="ignore"))
+                            p_items = p_data.get("items", [])
+                            if not p_items:
+                                break
+                            add_items(p_items)
+                            new_min = min([it.get("order", 999999) for it in p_items if "order" in it])
+                            if new_min >= current_min_order:
+                                break
+                            current_min_order = new_min
+
+                            if page_round % 4 == 0 or len(comments_map) >= max_comments or current_min_order <= 1:
+                                self._log_output(f">> [Marca 전체 댓글 수집 중] 총 {total_comments}개 중 {len(comments_map)}건 수집 완료...\n")
+                            time.sleep(0.08)
+                    except Exception:
+                        break
+
+            # 순서대로 정렬하여 반환
+            sorted_comments = sorted(comments_map.values(), key=lambda x: x.get("order", 0), reverse=True)
+            return sorted_comments
         except Exception as e:
             self._log_output(f">> [Marca API 탐색 알림] {e}\n")
             return []
@@ -901,39 +980,57 @@ class SportsCommentCrawlerGUI(_BaseClass):
             self._log_output(f">> [Foot Mercato Disqus 알림] {e}\n")
         return []
 
-    def _extract_dailymail_comments(self, real_url):
+    def _extract_dailymail_comments(self, real_url, max_comments=5000):
         """
-        영국 Daily Mail 전용: 기사 ID를 추출하여 공식 reader-comments JSON API에서 댓글 수집
+        영국 Daily Mail 전용: 기사 ID를 추출하여 공식 reader-comments JSON API에서 전체 댓글 연속 페이징 수집
         """
         try:
             m = re.search(r'article-(\d+)', real_url)
             if not m:
                 return []
             article_id = m.group(1)
-            api_url = f"https://www.dailymail.co.uk/reader-comments/p/articles/comments/{article_id}?offset=0&limit=50&sortOrder=mostLiked"
-            req = urllib.request.Request(
-                api_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Referer": real_url
-                }
-            )
-            with urllib.request.urlopen(req, timeout=7) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                items = data.get("payload", {}).get("page", [])
-                comments = []
-                for it in items:
-                    msg = it.get("message", "")
-                    clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
-                    user = it.get("user", {}).get("screenName") or "영국 팬"
-                    date_str = it.get("dateCreated") or ""
-                    if len(clean_text) >= 5:
-                        comments.append({
-                            "user": user,
-                            "date": date_str,
-                            "text": clean_text
-                        })
-                return comments
+
+            comments = []
+            offset = 0
+            limit = 50
+            total = 999999
+
+            while offset < total and len(comments) < max_comments and self.is_crawling:
+                api_url = f"https://www.dailymail.co.uk/reader-comments/p/articles/comments/{article_id}?offset={offset}&limit={limit}&sortOrder=mostLiked"
+                req = urllib.request.Request(
+                    api_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Referer": real_url
+                    }
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=7) as resp:
+                        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                        payload = data.get("payload", {})
+                        total = payload.get("total", 0)
+                        items = payload.get("page", [])
+                        if not items:
+                            break
+                        for it in items:
+                            msg = it.get("message", "")
+                            clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                            user = it.get("user", {}).get("screenName") or "영국 팬"
+                            date_str = it.get("dateCreated") or ""
+                            if len(clean_text) >= 5:
+                                comments.append({
+                                    "user": user,
+                                    "date": date_str,
+                                    "text": clean_text
+                                })
+                        offset += limit
+                        if total > 50 and offset < total and len(comments) < max_comments:
+                            self._log_output(f">> [Daily Mail 전체 댓글 수집 진행] 총 {total}개 중 {len(comments)}건 확보...\n")
+                        time.sleep(0.12)
+                except Exception:
+                    break
+
+            return comments
         except Exception as e:
             self._log_output(f">> [Daily Mail API 알림] {e}\n")
         return []
@@ -1162,6 +1259,23 @@ class SportsCommentCrawlerGUI(_BaseClass):
             match_mode = "부분 일치"
             max_crawl_articles = 3
 
+            # 댓글 수집 목표 한도 파싱 (전체 댓글 끝까지 또는 300, 100, 50개)
+            if "단일 기사" in current_tab:
+                depth_obj = getattr(self, "direct_comment_depth", None)
+                depth_val = depth_obj.get() if depth_obj else "전체 댓글 모두 (끝까지)"
+            else:
+                depth_obj = getattr(self, "comment_depth", None)
+                depth_val = depth_obj.get() if depth_obj else "전체 댓글 모두 (끝까지)"
+
+            if "50개" in depth_val:
+                max_comments_per_article = 50
+            elif "100개" in depth_val:
+                max_comments_per_article = 100
+            elif "300개" in depth_val:
+                max_comments_per_article = 300
+            else:
+                max_comments_per_article = 5000  # 사실상 제한 없는 기사의 전체 댓글 끝까지 수집
+
             # 1단계: 크롤링 대상 기사 목록 결정
             if "단일 기사" in current_tab:
                 url = self.entry_url.get().strip()
@@ -1305,8 +1419,8 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 # 1순위: 언론사별 전용 고속 API/JSON 추출기 시도 (DOM 렌더링/iframe 미로드 완전 우회)
                 api_comments = []
                 if "marca.com" in real_url:
-                    self._log_output(">> [Marca 전용] 공식 댓글 서비스 API(ueComments) 직접 조회 시도...\n")
-                    api_comments = self._extract_marca_comments_api(real_url)
+                    self._log_output(f">> [Marca 전용] 공식 댓글 서비스 API(ueComments) 전체 페이징 조회 시작 (목표: {'전체 끝까지' if max_comments_per_article > 1000 else f'{max_comments_per_article}개'})...\n")
+                    api_comments = self._extract_marca_comments_api(real_url, max_comments=max_comments_per_article)
                 elif "as.com" in real_url:
                     self._log_output(">> [AS.com 전용] 공식 Disqus 댓글 스레드 직접 조회 시도...\n")
                     api_comments = self._extract_as_comments_api(real_url)
@@ -1314,8 +1428,8 @@ class SportsCommentCrawlerGUI(_BaseClass):
                     self._log_output(">> [Foot Mercato 전용] 프랑스 Disqus 댓글 스레드 직접 조회 시도...\n")
                     api_comments = self._extract_footmercato_comments(real_url)
                 elif "dailymail.co.uk" in real_url:
-                    self._log_output(">> [Daily Mail 전용] 영국 reader-comments API 직접 조회 시도...\n")
-                    api_comments = self._extract_dailymail_comments(real_url)
+                    self._log_output(f">> [Daily Mail 전용] 영국 reader-comments API 전체 페이징 조회 시작 (목표: {'전체 끝까지' if max_comments_per_article > 1000 else f'{max_comments_per_article}개'})...\n")
+                    api_comments = self._extract_dailymail_comments(real_url, max_comments=max_comments_per_article)
                 elif "yahoo.co.jp" in real_url:
                     self._log_output(">> [Yahoo Japan 전용] 일본 포털 댓글 임베드 데이터 파싱 시도...\n")
                     api_comments = self._extract_yahoo_japan_comments(real_url)
@@ -1381,7 +1495,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
                 # iframe 진입 및 댓글 추출 (iframe 실패 시 메인 본문 댓글도 함께 파싱)
                 self._switch_to_comment_iframe(iframe_sel)
-                self._extract_comments(comment_sel, article_url=real_url)
+                self._extract_comments(comment_sel, article_url=real_url, max_comments=max_comments_per_article)
                 time.sleep(2)
 
         except Exception as e:
@@ -1480,23 +1594,14 @@ class SportsCommentCrawlerGUI(_BaseClass):
         self._log_output(">> 지정된 iframe이 없거나 메인 페이지 DOM에 댓글이 직접 배치되어 있습니다.\n")
         return False
 
-    def _extract_comments(self, comment_selector_str, article_url=""):
-        """지정된 CSS 셀렉터로부터 댓글을 파싱하고 5자 미만/광고 필터링"""
-        self._set_status("댓글 본문 요소 추출 중...")
+    def _extract_comments(self, comment_selector_str, article_url="", max_comments=5000):
+        """
+        지정된 CSS 셀렉터로부터 댓글을 파싱하며, '더보기(Load More)' 버튼 클릭 및 스크롤을 반복하여
+        기사에 달린 수백 개의 전체 댓글을 끝까지 확장하여 수집합니다.
+        """
+        self._set_status("댓글 로딩 및 전체 확장 중...")
         selectors = [s.strip() for s in comment_selector_str.split(",") if s.strip()]
 
-        found_elements = []
-        for sel in selectors:
-            try:
-                elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
-                if elems:
-                    found_elements = elems
-                    self._log_output(f">> 셀렉터 매칭 성공 ({sel}): {len(elems)}개 발견\n")
-                    break
-            except Exception:
-                continue
-
-        # 만약 명시적 셀렉터로 못 찾은 경우, 일반적인 댓글 컨테이너 대체 탐색
         fallback_selectors = [
             ".post-message",
             ".post-message p",
@@ -1511,6 +1616,127 @@ class SportsCommentCrawlerGUI(_BaseClass):
             ".post-content",
             ".comment-text"
         ]
+        all_candidate_selectors = selectors + fallback_selectors
+
+        # 1. 댓글 더보기(Load More) 반복 클릭 및 동적 스크롤 확장 루프
+        load_more_selectors = [
+            "button[data-action='more-posts']",
+            ".load-more__button",
+            "button[class*='load-more']",
+            "button[class*='more-comments']",
+            ".load-more a",
+            "button[data-testid='comments-loadMore-button']",
+            "button[id*='loadMore']",
+            "button[data-testid='load-more-btn']",
+            ".ue-c-article__comments-button-more",
+            ".c-comments__more button",
+            "button[aria-label*='more']",
+            "button[aria-label*='cargar']",
+            "button[aria-label*='Mehr']"
+        ]
+
+        self._log_output(f">> 전체 댓글 확장을 시작합니다 (목표: {'전체 끝까지' if max_comments > 1000 else f'최대 {max_comments}개'})...\n")
+
+        last_found_count = 0
+        no_growth_count = 0
+        max_expand_rounds = 40 if max_comments > 1000 else min(30, max_comments // 10 + 3)
+
+        for round_idx in range(max_expand_rounds):
+            if not self.is_crawling:
+                break
+
+            # 현재 로드된 댓글 수 확인
+            cur_elements = []
+            for sel in all_candidate_selectors:
+                try:
+                    elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems:
+                        cur_elements = elems
+                        break
+                except Exception:
+                    continue
+
+            cur_cnt = len(cur_elements)
+            if cur_cnt >= max_comments:
+                self._log_output(f">> 목표 댓글 수({max_comments}개)에 도달하여 확장을 마칩니다.\n")
+                break
+
+            # '더보기' 버튼 탐색 및 클릭
+            clicked = False
+            for b_sel in load_more_selectors:
+                try:
+                    btns = self.driver.find_elements(By.CSS_SELECTOR, b_sel)
+                    for b in btns:
+                        if b.is_displayed():
+                            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", b)
+                            time.sleep(0.3)
+                            self.driver.execute_script("arguments[0].click();", b)
+                            clicked = True
+                            time.sleep(1.2)
+                            break
+                    if clicked:
+                        break
+                except Exception:
+                    continue
+
+            # 텍스트 기반 더보기 버튼 탐색 (Cargar más, Load more, 더보기 등)
+            if not clicked:
+                try:
+                    more_candidates = self.driver.find_elements(By.XPATH, "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'more') or contains(., 'cargar') or contains(., 'ver más') or contains(., 'mehr') or contains(., '더보기') or contains(., '더 보기') or contains(., 'もっと見る') or contains(., '展开')] | //a[contains(., 'cargar') or contains(., 'Load more') or contains(., 'Ver más')]")
+                    for b in more_candidates:
+                        if b.is_displayed():
+                            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", b)
+                            time.sleep(0.3)
+                            self.driver.execute_script("arguments[0].click();", b)
+                            clicked = True
+                            time.sleep(1.2)
+                            break
+                except Exception:
+                    pass
+
+            # 버튼이 없으면 하단 스크롤을 통해 무한 스크롤 트리거
+            if not clicked:
+                try:
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);\n")
+                    time.sleep(1.0)
+                except Exception:
+                    pass
+
+            # 확장 후 댓글 개수 변동 확인
+            new_elements = []
+            for sel in all_candidate_selectors:
+                try:
+                    elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems:
+                        new_elements = elems
+                        break
+                except Exception:
+                    continue
+
+            new_cnt = len(new_elements)
+            if new_cnt > last_found_count:
+                if round_idx > 0 and (round_idx % 2 == 0 or new_cnt >= max_comments):
+                    self._log_output(f">> [댓글 확장 {round_idx+1}단계] 현재 {new_cnt}개 댓글 로드됨...\n")
+                last_found_count = new_cnt
+                no_growth_count = 0
+            else:
+                no_growth_count += 1
+                if no_growth_count >= 3:
+                    # 3회 연속 새로운 댓글이 로드되지 않으면 기사의 전체 댓글 끝에 도달한 것으로 판단
+                    break
+
+        # 2. 최종 댓글 요소 획득
+        found_elements = []
+        for sel in selectors:
+            try:
+                elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                if elems:
+                    found_elements = elems
+                    self._log_output(f">> 셀렉터 매칭 성공 ({sel}): {len(elems)}개 발견\n")
+                    break
+            except Exception:
+                continue
+
         if not found_elements:
             for fb in fallback_selectors:
                 try:
@@ -1544,7 +1770,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
         count = 0
 
         for elem in found_elements:
-            if not self.is_crawling:
+            if not self.is_crawling or count >= max_comments:
                 break
             try:
                 raw_text = elem.text.strip()
