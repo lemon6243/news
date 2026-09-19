@@ -109,34 +109,61 @@ class SportsCommentCrawlerGUI(_BaseClass):
         kw_preset_label.pack(side="left", padx=(0, 8))
 
         btn_kw1 = ctk.CTkButton(
-            kw_preset_frame, text="이강인 아틀레티코", width=120, height=24,
-            command=lambda: self._set_keyword_text("이강인 아틀레티코마드리드"),
+            kw_preset_frame, text="이강인 (PSG)", width=105, height=24,
+            command=lambda: self._set_keyword_text("이강인 PSG Champions"),
             fg_color="#334155", hover_color="#475569"
         )
         btn_kw1.pack(side="left", padx=3)
 
         btn_kw2 = ctk.CTkButton(
-            kw_preset_frame, text="Lee Kang-in PSG", width=120, height=24,
-            command=lambda: self._set_keyword_text("Lee Kang-in PSG Champions"),
+            kw_preset_frame, text="손흥민 (토트넘)", width=105, height=24,
+            command=lambda: self._set_keyword_text("Son Heung-min Tottenham"),
             fg_color="#334155", hover_color="#475569"
         )
         btn_kw2.pack(side="left", padx=3)
 
         btn_kw3 = ctk.CTkButton(
-            kw_preset_frame, text="손흥민 토트넘", width=100, height=24,
-            command=lambda: self._set_keyword_text("Son Heung-min Tottenham"),
+            kw_preset_frame, text="김민재 (뮌헨)", width=105, height=24,
+            command=lambda: self._set_keyword_text("Kim Min-jae Bayern"),
             fg_color="#334155", hover_color="#475569"
         )
         btn_kw3.pack(side="left", padx=3)
 
-        kw_target_label = ctk.CTkLabel(tab_keyword, text="검색 대상 해외 스포츠 언론사:")
+        btn_kw4 = ctk.CTkButton(
+            kw_preset_frame, text="황희찬 (울버햄튼)", width=110, height=24,
+            command=lambda: self._set_keyword_text("Hwang Hee-chan Wolves"),
+            fg_color="#334155", hover_color="#475569"
+        )
+        btn_kw4.pack(side="left", padx=3)
+
+        btn_kw5 = ctk.CTkButton(
+            kw_preset_frame, text="쿠보 다케후사", width=95, height=24,
+            command=lambda: self._set_keyword_text("久保建英 ソシエダ"),
+            fg_color="#334155", hover_color="#475569"
+        )
+        btn_kw5.pack(side="left", padx=3)
+
+        kw_target_label = ctk.CTkLabel(tab_keyword, text="검색 대상 국가 / 메이저 스포츠 언론사:")
         kw_target_label.grid(row=3, column=0, sticky="w", padx=10, pady=(4, 2))
 
-        self.media_choice = ctk.CTkSegmentedButton(
+        self.media_choice = ctk.CTkComboBox(
             tab_keyword,
-            values=["Marca (스페인 1위)", "AS.com (스페인 2위)", "스페인 전체 스포츠지 (Marca + AS)"]
+            values=[
+                "글로벌 메이저 스포츠지 전체 (스페인/영국/독일/프랑스/이탈리아/일본/중국)",
+                "🇪🇸 스페인 (Marca + AS.com)",
+                "🇪🇸 Marca (스페인 1위)",
+                "🇪🇸 AS.com (스페인 2위)",
+                "🇬🇧 영국 (Daily Mail + The Sun + Guardian)",
+                "🇩🇪 독일 (Sport1 + Sport.de + Kicker)",
+                "🇫🇷 프랑스 (Foot Mercato + L'Equipe + MaxiFoot)",
+                "🇮🇹 이탈리아 (Gazzetta dello Sport + Corriere + Tuttosport)",
+                "🇯🇵 일본 (Yahoo Japan Sports + FootballChannel + SoccerDigest)",
+                "🇨🇳 중국 (Hupu 虎扑 + Sina Sports + Dongqiudi)"
+            ],
+            width=520,
+            state="readonly"
         )
-        self.media_choice.set("스페인 전체 스포츠지 (Marca + AS)")
+        self.media_choice.set("글로벌 메이저 스포츠지 전체 (스페인/영국/독일/프랑스/이탈리아/일본/중국)")
         self.media_choice.grid(row=4, column=0, sticky="w", padx=10, pady=(0, 8))
 
         # 매칭 기준 및 수집 기사 수 설정
@@ -190,20 +217,50 @@ class SportsCommentCrawlerGUI(_BaseClass):
         preset_frame = ctk.CTkFrame(tab_direct, fg_color="transparent")
         preset_frame.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 8))
         
-        preset_label = ctk.CTkLabel(preset_frame, text="빠른 프리셋:", font=ctk.CTkFont(size=12, weight="bold"), text_color="#38bdf8")
+        preset_label = ctk.CTkLabel(preset_frame, text="국가별 프리셋:", font=ctk.CTkFont(size=12, weight="bold"), text_color="#38bdf8")
         preset_label.pack(side="left", padx=(0, 8))
 
         btn_preset_marca = ctk.CTkButton(
-            preset_frame, text="Marca 프리셋", width=95, height=26,
+            preset_frame, text="🇪🇸 Marca", width=80, height=26,
             command=self._set_preset_marca, fg_color="#2563eb", hover_color="#1d4ed8"
         )
-        btn_preset_marca.pack(side="left", padx=4)
+        btn_preset_marca.pack(side="left", padx=2)
 
         btn_preset_as = ctk.CTkButton(
-            preset_frame, text="AS.com 프리셋", width=95, height=26,
+            preset_frame, text="🇪🇸 AS.com", width=80, height=26,
             command=self._set_preset_as, fg_color="#059669", hover_color="#047857"
         )
-        btn_preset_as.pack(side="left", padx=4)
+        btn_preset_as.pack(side="left", padx=2)
+
+        btn_preset_fm = ctk.CTkButton(
+            preset_frame, text="🇫🇷 Foot Mercato", width=105, height=26,
+            command=self._set_preset_footmercato, fg_color="#7c3aed", hover_color="#6d28d9"
+        )
+        btn_preset_fm.pack(side="left", padx=2)
+
+        btn_preset_uk = ctk.CTkButton(
+            preset_frame, text="🇬🇧 Daily Mail/The Sun", width=130, height=26,
+            command=self._set_preset_uk, fg_color="#b91c1c", hover_color="#991b1b"
+        )
+        btn_preset_uk.pack(side="left", padx=2)
+
+        btn_preset_de_it = ctk.CTkButton(
+            preset_frame, text="🇩🇪 🇮🇹 독/이탈리아", width=105, height=26,
+            command=self._set_preset_germany_italy, fg_color="#d97706", hover_color="#b45309"
+        )
+        btn_preset_de_it.pack(side="left", padx=2)
+
+        btn_preset_jp = ctk.CTkButton(
+            preset_frame, text="🇯🇵 야후재팬/Qoly", width=105, height=26,
+            command=self._set_preset_japan, fg_color="#0891b2", hover_color="#0e7490"
+        )
+        btn_preset_jp.pack(side="left", padx=2)
+
+        btn_preset_cn = ctk.CTkButton(
+            preset_frame, text="🇨🇳 Hupu/동치우디", width=110, height=26,
+            command=self._set_preset_china, fg_color="#be185d", hover_color="#9d174d"
+        )
+        btn_preset_cn.pack(side="left", padx=2)
 
         # iframe 선택자
         iframe_label = ctk.CTkLabel(tab_direct, text="iframe 선택자 (선택 사항):")
@@ -326,6 +383,46 @@ class SportsCommentCrawlerGUI(_BaseClass):
         self.entry_comment_css.insert(0, ".post-message, .post-message p, [data-role='post-content'], .c-comments__body, div[class*='comment-body']")
         self._set_status("AS.com 프리셋(Disqus 최적화)이 적용되었습니다.")
 
+    def _set_preset_footmercato(self):
+        """Foot Mercato (프랑스) 전용 프리셋 주입"""
+        self.entry_iframe.delete(0, "end")
+        self.entry_iframe.insert(0, "iframe[src*='disqus.com/embed/comments'], iframe[id*='dsq-app'], iframe[title*='Disqus']")
+        self.entry_comment_css.delete(0, "end")
+        self.entry_comment_css.insert(0, ".post-message, .post-message p, [data-role='post-content'], .comment__text")
+        self._set_status("Foot Mercato (프랑스 Disqus) 프리셋이 적용되었습니다.")
+
+    def _set_preset_uk(self):
+        """영국 (Daily Mail / The Sun / Guardian) 전용 프리셋 주입"""
+        self.entry_iframe.delete(0, "end")
+        self.entry_iframe.insert(0, "iframe[src*='spot.im'], iframe[src*='openweb'], iframe[id*='sp_message_iframe'], iframe[src*='coral']")
+        self.entry_comment_css.delete(0, "end")
+        self.entry_comment_css.insert(0, ".comment__text, .messageContent, .item-comment, [data-testid='comment-content'], .dsq-comment-body, div[class*='content-message']")
+        self._set_status("영국 언론사 (Daily Mail / The Sun / OpenWeb) 프리셋이 적용되었습니다.")
+
+    def _set_preset_germany_italy(self):
+        """독일 / 이탈리아 (Sport1, Sport.de, Gazzetta, Corriere) 전용 프리셋 주입"""
+        self.entry_iframe.delete(0, "end")
+        self.entry_iframe.insert(0, "iframe[src*='spot.im'], iframe[src*='openweb'], iframe[src*='disqus'], iframe[id*='comment']")
+        self.entry_comment_css.delete(0, "end")
+        self.entry_comment_css.insert(0, ".sp_message, .comment-content, div[class*='comment-body'], [data-role='post-content'], .post-message")
+        self._set_status("독일/이탈리아 언론사 프리셋이 적용되었습니다.")
+
+    def _set_preset_japan(self):
+        """일본 (Yahoo Japan Sports, Qoly, FootballChannel) 전용 프리셋 주입"""
+        self.entry_iframe.delete(0, "end")
+        self.entry_iframe.insert(0, "iframe[id*='comment'], iframe[src*='disqus'], iframe[src*='comment']")
+        self.entry_comment_css.delete(0, "end")
+        self.entry_comment_css.insert(0, "p[class*='CommentItem__comment'], p[class*='comment'], [data-testid='comment-content'], .post-message, div[class*='comment-text']")
+        self._set_status("일본 야후재팬 / 축구 언론사 프리셋이 적용되었습니다.")
+
+    def _set_preset_china(self):
+        """중국 (Hupu 虎扑, Dongqiudi 懂球帝, Sina Sports) 전용 프리셋 주입"""
+        self.entry_iframe.delete(0, "end")
+        self.entry_iframe.insert(0, "iframe[id*='comment'], iframe[src*='comment']")
+        self.entry_comment_css.delete(0, "end")
+        self.entry_comment_css.insert(0, ".thread-content-detail, .post-reply-list-content, [class*='comment-content'], .comment-item-content, div[class*='reply_content']")
+        self._set_status("중국 호푸(Hupu) / 동치우디 프리셋이 적용되었습니다.")
+
     def _set_status(self, text, color="#38bdf8"):
         """UI 스레드에서 상태 라벨 갱신"""
         self.after(0, lambda: self.lbl_status.configure(text=f"상태: {text}", text_color=color))
@@ -403,11 +500,19 @@ class SportsCommentCrawlerGUI(_BaseClass):
         2. 기사 제목 및 본문(원문)에 포함되었는지 검사할 부분 일치 토큰 세트 생성
         """
         entity_map = [
-            ("이강인", "player", "Kang-in", ["kang-in", "kang in", "lee kang-in", "lee kang in", "kangin"]),
+            # 한국 및 글로벌 주요 선수
+            ("이강인", "player", "Kang-in", ["kang-in", "kang in", "lee kang-in", "lee kang in", "kangin", "イ・ガンイン", "李刚仁"]),
             ("강인", "player", "Kang-in", ["kang-in", "kang in"]),
-            ("손흥민", "player", "Son Heung-min", ["son", "heung-min", "sonny"]),
-            ("김민재", "player", "Kim Min-jae", ["kim min-jae", "min-jae", "minjae"]),
-            ("황희찬", "player", "Hwang Hee-chan", ["hwang", "hee-chan"]),
+            ("손흥민", "player", "Son Heung-min", ["son", "heung-min", "sonny", "ソン・フンミン", "孙兴慜"]),
+            ("김민재", "player", "Kim Min-jae", ["kim min-jae", "min-jae", "minjae", "キム・ミンジェ", "金玟哉"]),
+            ("황희찬", "player", "Hwang Hee-chan", ["hwang", "hee-chan", "황희찬", "黄喜灿"]),
+            ("쿠보", "player", "Kubo", ["kubo", "takefusa kubo", "久保建英"]),
+            ("미토마", "player", "Mitoma", ["mitoma", "kaoru mitoma", "三笘薫"]),
+            ("음바페", "player", "Mbappe", ["mbappe", "mbappé"]),
+            ("홀란드", "player", "Haaland", ["haaland"]),
+            ("메시", "player", "Messi", ["messi"]),
+            ("호날두", "player", "Ronaldo", ["ronaldo", "cr7"]),
+            # 주요 클럽 팀
             ("아틀레티코마드리드", "team", "Atletico Madrid", ["atletico", "atlético", "atleti", "colchoneros", "colchonero"]),
             ("아틸레티코마드리드", "team", "Atletico Madrid", ["atletico", "atlético", "atleti"]),
             ("아틀레티코", "team", "Atletico", ["atletico", "atlético", "atleti"]),
@@ -415,11 +520,21 @@ class SportsCommentCrawlerGUI(_BaseClass):
             ("오사수나", "team", "Osasuna", ["osasuna", "rojillos", "rojillo"]),
             ("레알마드리드", "team", "Real Madrid", ["real madrid", "madrid", "merengue"]),
             ("바르셀로나", "team", "Barcelona", ["barcelona", "barca", "barça", "culer"]),
-            ("파리생제르맹", "team", "PSG", ["psg", "paris"]),
+            ("파리생제르맹", "team", "PSG", ["psg", "paris", "paris sg"]),
+            ("파리", "team", "PSG", ["psg", "paris"]),
             ("마요르카", "team", "Mallorca", ["mallorca", "bermellon"]),
             ("발렌시아", "team", "Valencia", ["valencia", "che"]),
             ("토트넘", "team", "Tottenham", ["tottenham", "spurs"]),
             ("바이에른뮌헨", "team", "Bayern", ["bayern", "munich", "münchen"]),
+            ("뮌헨", "team", "Bayern", ["bayern", "munich", "münchen"]),
+            ("울버햄튼", "team", "Wolves", ["wolves", "wolverhampton"]),
+            ("맨시티", "team", "Man City", ["man city", "manchester city"]),
+            ("아스날", "team", "Arsenal", ["arsenal", "gunners"]),
+            ("리버풀", "team", "Liverpool", ["liverpool"]),
+            ("소시에다드", "team", "Real Sociedad", ["sociedad", "real sociedad", "ソシエダ"]),
+            ("유벤투스", "team", "Juventus", ["juventus", "juve"]),
+            ("밀란", "team", "Milan", ["ac milan", "milan", "rossoneri"]),
+            ("인테르", "team", "Inter", ["inter", "nerazzurri"]),
         ]
 
         match_tokens = set()
@@ -461,47 +576,71 @@ class SportsCommentCrawlerGUI(_BaseClass):
         return queries, match_tokens
 
     def _fetch_candidate_articles(self, search_queries, media, pool_limit=10):
-        """다양한 검색 쿼리 조합으로 Google News RSS에서 중복 없이 후보 기사 추출"""
-        site_filter = "site:marca.com OR site:as.com"
-        if "Marca" in media:
-            site_filter = "site:marca.com"
-        elif "AS.com" in media:
-            site_filter = "site:as.com"
+        """다양한 검색 쿼리 조합 및 선택된 국가/언론사에 맞춰 Google News RSS에서 중복 없이 후보 기사 추출"""
+        # 선택된 국가에 따른 언어/국가 파라미터 및 site_filter 결정
+        hl_gl_map = {
+            "스페인": ("hl=es&gl=ES&ceid=ES:es", "site:marca.com OR site:as.com"),
+            "Marca": ("hl=es&gl=ES&ceid=ES:es", "site:marca.com"),
+            "AS.com": ("hl=es&gl=ES&ceid=ES:es", "site:as.com"),
+            "영국": ("hl=en-GB&gl=GB&ceid=GB:en", "site:dailymail.co.uk OR site:thesun.co.uk OR site:theguardian.com"),
+            "독일": ("hl=de&gl=DE&ceid=DE:de", "site:sport1.de OR site:sport.de OR site:kicker.de"),
+            "프랑스": ("hl=fr&gl=FR&ceid=FR:fr", "site:footmercato.net OR site:lequipe.fr OR site:maxifoot.fr"),
+            "이탈리아": ("hl=it&gl=IT&ceid=IT:it", "site:gazzetta.it OR site:corrieredellosport.it OR site:tuttosport.com"),
+            "일본": ("hl=ja&gl=JP&ceid=JP:ja", "site:news.yahoo.co.jp OR site:football-zone.net OR site:soccerdigestweb.com OR site:qoly.jp"),
+            "중국": ("hl=zh-CN&gl=CN&ceid=CN:zh-Hans", "site:hupu.com OR site:dongqiudi.com OR site:sports.sina.com.cn")
+        }
+
+        # 기본값 (글로벌 전체 선택 시)
+        region_params = [
+            ("hl=es&gl=ES&ceid=ES:es", "site:marca.com OR site:as.com"),
+            ("hl=en-GB&gl=GB&ceid=GB:en", "site:dailymail.co.uk OR site:thesun.co.uk"),
+            ("hl=fr&gl=FR&ceid=FR:fr", "site:footmercato.net OR site:maxifoot.fr"),
+            ("hl=de&gl=DE&ceid=DE:de", "site:sport1.de OR site:sport.de"),
+            ("hl=it&gl=IT&ceid=IT:it", "site:gazzetta.it OR site:corrieredellosport.it"),
+            ("hl=ja&gl=JP&ceid=JP:ja", "site:news.yahoo.co.jp OR site:qoly.jp"),
+            ("hl=zh-CN&gl=CN&ceid=CN:zh-Hans", "site:hupu.com OR site:dongqiudi.com")
+        ]
+
+        # 사용자 지정 언론사 선택 확인
+        for key, val in hl_gl_map.items():
+            if key in media:
+                region_params = [val]
+                break
 
         candidates = []
         seen_urls = set()
 
-        for q in search_queries:
-            if not self.is_crawling:
+        for lang_param, site_filter in region_params:
+            if not self.is_crawling or len(candidates) >= pool_limit:
                 break
-            full_query = f"{q} {site_filter}"
-            encoded_query = urllib.parse.quote_plus(full_query)
-            rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es&gl=ES&ceid=ES:es"
+            for q in search_queries:
+                if not self.is_crawling or len(candidates) >= pool_limit:
+                    break
+                full_query = f"{q} {site_filter}"
+                encoded_query = urllib.parse.quote_plus(full_query)
+                rss_url = f"https://news.google.com/rss/search?q={encoded_query}&{lang_param}"
 
-            self._log_output(f">> [RSS 탐색] {full_query}\n")
-            req = urllib.request.Request(
-                rss_url,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=8) as response:
-                    xml_data = response.read()
-                    root = ET.fromstring(xml_data)
-                    items = root.findall(".//item")
-                    for it in items[:6]:
-                        title_elem = it.find("title")
-                        link_elem = it.find("link")
-                        if title_elem is not None and link_elem is not None:
-                            t = (title_elem.text or "제목 없음").strip()
-                            l = (link_elem.text or "").strip()
-                            if l and l not in seen_urls:
-                                seen_urls.add(l)
-                                candidates.append({"title": t, "url": l})
-            except Exception as e:
-                self._log_output(f">> RSS 응답 안내 ({q}): {e}\n")
-
-            if len(candidates) >= pool_limit:
-                break
+                self._log_output(f">> [RSS 탐색] {full_query}\n")
+                req = urllib.request.Request(
+                    rss_url,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=8) as response:
+                        xml_data = response.read()
+                        root = ET.fromstring(xml_data)
+                        items = root.findall(".//item")
+                        for it in items[:6]:
+                            title_elem = it.find("title")
+                            link_elem = it.find("link")
+                            if title_elem is not None and link_elem is not None:
+                                t = (title_elem.text or "제목 없음").strip()
+                                l = (link_elem.text or "").strip()
+                                if l and l not in seen_urls:
+                                    seen_urls.add(l)
+                                    candidates.append({"title": t, "url": l})
+                except Exception as e:
+                    self._log_output(f">> RSS 응답 안내 ({q}): {e}\n")
 
         return candidates[:pool_limit]
 
@@ -509,6 +648,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
         """
         Google News RSS 리디렉션 URL(https://news.google.com/rss/articles/...)을
         Google batchexecute Fbv4je RPC를 통해 실제 언론사 기사 원문 URL로 고속 디코딩합니다.
+        스페인, 영국, 독일, 프랑스, 이탈리아, 일본, 중국 등 글로벌 언론사를 모두 지원합니다.
         """
         if "news.google.com" not in gnews_url:
             return gnews_url
@@ -548,8 +688,21 @@ class SportsCommentCrawlerGUI(_BaseClass):
             with urllib.request.urlopen(rpc_req, timeout=8) as resp:
                 res = resp.read().decode("utf-8", errors="ignore")
                 found = re.findall(r'https?://[^\s\"\'\\\]]+', res)
+                target_domains = [
+                    "marca.com", "as.com", "dailymail.co.uk", "thesun.co.uk",
+                    "theguardian.com", "sport1.de", "sport.de", "kicker.de",
+                    "footmercato.net", "lequipe.fr", "maxifoot.fr",
+                    "gazzetta.it", "corrieredellosport.it", "tuttosport.com",
+                    "yahoo.co.jp", "football-zone.net", "soccerdigestweb.com", "qoly.jp",
+                    "hupu.com", "dongqiudi.com", "sina.com.cn"
+                ]
                 for u in found:
-                    if "marca.com" in u or "as.com" in u:
+                    for td in target_domains:
+                        if td in u:
+                            return u
+                # 만약 위 도메인이 아니더라도 첫 번째 유효 http URL 반환
+                for u in found:
+                    if "google.com" not in u and len(u) > 15:
                         return u
         except Exception as e:
             self._log_output(f">> Google News URL 디코딩 알림: {e}\n")
@@ -676,6 +829,203 @@ class SportsCommentCrawlerGUI(_BaseClass):
         except Exception as e:
             self._log_output(f">> [AS Disqus 탐색 알림] {e}\n")
             return []
+
+    def _extract_footmercato_comments(self, real_url):
+        """
+        프랑스 Foot Mercato 전용: Disqus 댓글 스레드 식별자를 추출하여
+        공식 Disqus API 엔드포인트에서 댓글을 직접 고속 수집합니다.
+        """
+        try:
+            page_src = ""
+            if self.driver:
+                try:
+                    page_src = self.driver.page_source or ""
+                except Exception:
+                    page_src = ""
+
+            if not page_src or "disqus_shortname" not in page_src and "disqus" not in page_src:
+                req = urllib.request.Request(
+                    real_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    page_src = resp.read().decode("utf-8", errors="ignore")
+
+            m_id = re.search(r'disqus_identifier\s*=\s*[\'\"]([^\'\"]+)[\'\"]', page_src)
+            m_short = re.search(r'disqus_shortname\s*=\s*[\'\"]([^\'\"]+)[\'\"]', page_src)
+            shortname = m_short.group(1) if m_short else "footmercato"
+            page_id = m_id.group(1) if m_id else ""
+
+            if not page_id:
+                # URL에서 기사 ID 추출 시도
+                m_num = re.search(r'-(\d+)(?:\.html)?$', real_url)
+                if m_num:
+                    page_id = m_num.group(1)
+
+            if not page_id:
+                return []
+
+            t_u = urllib.parse.quote(real_url, safe="")
+            dsq_url = f"https://disqus.com/embed/comments/?base=default&f={shortname}&t_i={page_id}&t_u={t_u}&s_o=default"
+
+            dsq_req = urllib.request.Request(
+                dsq_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Referer": real_url
+                }
+            )
+            with urllib.request.urlopen(dsq_req, timeout=8) as resp:
+                d_html = resp.read().decode("utf-8", errors="ignore")
+                for scr in re.findall(r'<script[^>]*>(.*?)</script>', d_html, re.DOTALL):
+                    if '"posts":[' in scr:
+                        posts = json.loads(scr).get("response", {}).get("posts", [])
+                        comments = []
+                        for p in posts:
+                            msg = p.get("message", "")
+                            clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                            clean_text = clean_text.replace("&quot;", '"').replace("&amp;", '&').replace("&#39;", "'")
+                            user = p.get("author", {}).get("name") or "프랑스 팬"
+                            date_str = p.get("createdAt") or ""
+                            if len(clean_text) >= 5:
+                                comments.append({
+                                    "user": user,
+                                    "date": date_str,
+                                    "text": clean_text
+                                })
+                        return comments
+        except Exception as e:
+            self._log_output(f">> [Foot Mercato Disqus 알림] {e}\n")
+        return []
+
+    def _extract_dailymail_comments(self, real_url):
+        """
+        영국 Daily Mail 전용: 기사 ID를 추출하여 공식 reader-comments JSON API에서 댓글 수집
+        """
+        try:
+            m = re.search(r'article-(\d+)', real_url)
+            if not m:
+                return []
+            article_id = m.group(1)
+            api_url = f"https://www.dailymail.co.uk/reader-comments/p/articles/comments/{article_id}?offset=0&limit=50&sortOrder=mostLiked"
+            req = urllib.request.Request(
+                api_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Referer": real_url
+                }
+            )
+            with urllib.request.urlopen(req, timeout=7) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                items = data.get("payload", {}).get("page", [])
+                comments = []
+                for it in items:
+                    msg = it.get("message", "")
+                    clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                    user = it.get("user", {}).get("screenName") or "영국 팬"
+                    date_str = it.get("dateCreated") or ""
+                    if len(clean_text) >= 5:
+                        comments.append({
+                            "user": user,
+                            "date": date_str,
+                            "text": clean_text
+                        })
+                return comments
+        except Exception as e:
+            self._log_output(f">> [Daily Mail API 알림] {e}\n")
+        return []
+
+    def _extract_yahoo_japan_comments(self, real_url):
+        """
+        일본 Yahoo Japan Sports 전용: 기사 페이지 소스 내 임베드된 댓글 JSON 데이터 및 DOM 파싱
+        """
+        try:
+            page_src = ""
+            if self.driver:
+                try:
+                    page_src = self.driver.page_source or ""
+                except Exception:
+                    page_src = ""
+
+            if not page_src:
+                req = urllib.request.Request(
+                    real_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Accept-Language": "ja-JP,ja;q=0.9"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    page_src = resp.read().decode("utf-8", errors="ignore")
+
+            comments = []
+            # 1. JSON-LD 또는 YAHOO.JP.templa.param 검색
+            m = re.search(r'YAHOO\.JP\.templa\.param\s*=\s*({.*?});', page_src, re.DOTALL)
+            if m:
+                try:
+                    param_data = json.loads(m.group(1))
+                    comment_list = param_data.get("comment", {}).get("list", [])
+                    for c in comment_list:
+                        txt = c.get("text") or c.get("comment") or ""
+                        user = c.get("user", {}).get("name") or "일본 네티즌"
+                        if len(txt.strip()) >= 5:
+                            comments.append({"user": user, "date": "", "text": txt.strip()})
+                except Exception:
+                    pass
+
+            # 2. 정규식 DOM 텍스트 파싱 백업 (CommentItem 스타일)
+            if not comments:
+                items = re.findall(r'<p[^>]*class=\"[^\"]*CommentItem[^\"]*\"[^>]*>(.*?)</p>', page_src, re.DOTALL)
+                for it in items:
+                    clean = re.sub(r'<[^>]+>', ' ', it).strip()
+                    clean = clean.replace("&quot;", '"').replace("&amp;", '&').replace("&#39;", "'")
+                    if len(clean) >= 5 and "非表示" not in clean and "返信" not in clean:
+                        comments.append({"user": "일본 네티즌", "date": "", "text": clean})
+
+            return comments
+        except Exception as e:
+            self._log_output(f">> [Yahoo Japan 파싱 알림] {e}\n")
+        return []
+
+    def _extract_hupu_comments(self, real_url):
+        """
+        중국 Hupu 虎扑 전용: 포럼 스레드 본문 및 댓글 고속 추출
+        """
+        try:
+            page_src = ""
+            if self.driver:
+                try:
+                    page_src = self.driver.page_source or ""
+                except Exception:
+                    page_src = ""
+
+            if not page_src:
+                req = urllib.request.Request(
+                    real_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Accept-Language": "zh-CN,zh;q=0.9"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    page_src = resp.read().decode("utf-8", errors="ignore")
+
+            comments = []
+            # Hupu reply-item 또는 post-reply-list 매칭
+            replies = re.findall(r'<div[^>]*class=\"[^\"]*(?:post-reply-list-content|thread-content-detail|reply-item-content)[^\"]*\"[^>]*>(.*?)</div>', page_src, re.DOTALL)
+            for r_text in replies:
+                clean = re.sub(r'<[^>]+>', ' ', r_text).strip()
+                clean = clean.replace("&quot;", '"').replace("&amp;", '&').replace("&#39;", "'")
+                if len(clean) >= 5 and "虎扑" not in clean and "下载APP" not in clean:
+                    comments.append({"user": "중국 축구팬", "date": "", "text": clean})
+
+            return comments
+        except Exception as e:
+            self._log_output(f">> [Hupu 파싱 알림] {e}\n")
+        return []
 
     def _check_article_content_match(self, title, headline, body_text, match_tokens, match_mode):
         """
@@ -952,7 +1302,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
                 crawled_count += 1
 
-                # 1순위: 언론사별 전용 고속 API 추출기 시도 (DOM 렌더링/iframe 미로드 완전 우회)
+                # 1순위: 언론사별 전용 고속 API/JSON 추출기 시도 (DOM 렌더링/iframe 미로드 완전 우회)
                 api_comments = []
                 if "marca.com" in real_url:
                     self._log_output(">> [Marca 전용] 공식 댓글 서비스 API(ueComments) 직접 조회 시도...\n")
@@ -960,6 +1310,18 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 elif "as.com" in real_url:
                     self._log_output(">> [AS.com 전용] 공식 Disqus 댓글 스레드 직접 조회 시도...\n")
                     api_comments = self._extract_as_comments_api(real_url)
+                elif "footmercato.net" in real_url:
+                    self._log_output(">> [Foot Mercato 전용] 프랑스 Disqus 댓글 스레드 직접 조회 시도...\n")
+                    api_comments = self._extract_footmercato_comments(real_url)
+                elif "dailymail.co.uk" in real_url:
+                    self._log_output(">> [Daily Mail 전용] 영국 reader-comments API 직접 조회 시도...\n")
+                    api_comments = self._extract_dailymail_comments(real_url)
+                elif "yahoo.co.jp" in real_url:
+                    self._log_output(">> [Yahoo Japan 전용] 일본 포털 댓글 임베드 데이터 파싱 시도...\n")
+                    api_comments = self._extract_yahoo_japan_comments(real_url)
+                elif "hupu.com" in real_url or "dongqiudi.com" in real_url:
+                    self._log_output(">> [중국 축구 포럼 전용] Hupu/동치우디 댓글 스레드 파싱 시도...\n")
+                    api_comments = self._extract_hupu_comments(real_url)
 
                 if api_comments:
                     self._log_output(f">> [성공] API를 통해 댓글 {len(api_comments)}건을 즉시 확보했습니다!\n")
