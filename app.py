@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import json
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -504,6 +505,178 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
         return candidates[:pool_limit]
 
+    def _decode_google_news_url(self, gnews_url):
+        """
+        Google News RSS 리디렉션 URL(https://news.google.com/rss/articles/...)을
+        Google batchexecute Fbv4je RPC를 통해 실제 언론사 기사 원문 URL로 고속 디코딩합니다.
+        """
+        if "news.google.com" not in gnews_url:
+            return gnews_url
+
+        try:
+            m = re.search(r'/articles/([a-zA-Z0-9_\-]+)', gnews_url)
+            if not m:
+                return gnews_url
+            article_id = m.group(1)
+
+            req_url = f"https://news.google.com/rss/articles/{article_id}"
+            req = urllib.request.Request(req_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+
+            sig_m = re.search(r'data-n-a-sg=\"([^\"]+)\"', html)
+            ts_m = re.search(r'data-n-a-ts=\"([^\"]+)\"', html)
+            if not sig_m or not ts_m:
+                return gnews_url
+
+            sig = sig_m.group(1)
+            ts = ts_m.group(1)
+
+            req_obj = [
+                "Fbv4je",
+                f'[\"garturlreq\",[[\"X\",\"X\",[\"X\",\"X\"],null,null,null,1,\"US:en\",null,1,null,null,null,null,null,0,1],\"en-US\",\"US\",1,[2],null,null,null,null,null,0,1],\"{article_id}\",{ts},\"{sig}\"]'
+            ]
+            payload = urllib.parse.urlencode({"f.req": json.dumps([[req_obj]])})
+            rpc_req = urllib.request.Request(
+                "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                data=payload.encode("utf-8"),
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                }
+            )
+            with urllib.request.urlopen(rpc_req, timeout=8) as resp:
+                res = resp.read().decode("utf-8", errors="ignore")
+                found = re.findall(r'https?://[^\s\"\'\\\]]+', res)
+                for u in found:
+                    if "marca.com" in u or "as.com" in u:
+                        return u
+        except Exception as e:
+            self._log_output(f">> Google News URL 디코딩 알림: {e}\n")
+
+        return gnews_url
+
+    def _extract_marca_comments_api(self, real_url):
+        """
+        Marca 전용: 기사 HTML 내 data-commentId를 파싱하여
+        공식 댓글 서비스 API(listar.html)에서 JSON 데이터를 즉시 수집합니다.
+        브라우저 렌더러 지연 및 iframe 비동기 미로드를 100% 우회합니다.
+        """
+        try:
+            # 1. 브라우저 페이지 소스 또는 direct fetch로 commentId 추출
+            page_src = ""
+            if self.driver:
+                try:
+                    page_src = self.driver.page_source or ""
+                except Exception:
+                    page_src = ""
+
+            if not page_src or "data-commentId" not in page_src:
+                req = urllib.request.Request(real_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    page_src = resp.read().decode("utf-8", errors="ignore")
+
+            cids = re.findall(r'data-commentId=[\"\'](\d+)[\"\']', page_src)
+            if not cids:
+                return []
+
+            cid = cids[0]
+            api_url = f"https://www.marca.com/servicios/noticias/comentarios/comunidad/listar.html?noticia={cid}&version=v2"
+            api_req = urllib.request.Request(
+                api_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Referer": "https://www.marca.com/"
+                }
+            )
+            with urllib.request.urlopen(api_req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                items = data.get("items", [])
+                comments = []
+                for it in items:
+                    body = it.get("body") or it.get("cuerpo") or ""
+                    user = it.get("user") or it.get("alias") or "익명"
+                    date_str = it.get("date") or ""
+                    if len(body.strip()) >= 5:
+                        comments.append({
+                            "user": user,
+                            "date": date_str,
+                            "text": body.strip()
+                        })
+                return comments
+        except Exception as e:
+            self._log_output(f">> [Marca API 탐색 알림] {e}\n")
+            return []
+
+    def _extract_as_comments_api(self, real_url):
+        """
+        AS.com 전용: 기사 HTML 내 externalDataCommentDisqus 식별자를 읽어
+        Disqus 공식 임베드 스레드 엔드포인트에서 JSON 댓글 데이터를 직접 고속 수집합니다.
+        """
+        try:
+            page_src = ""
+            if self.driver:
+                try:
+                    page_src = self.driver.page_source or ""
+                except Exception:
+                    page_src = ""
+
+            if not page_src or "externalDataCommentDisqus" not in page_src:
+                req = urllib.request.Request(
+                    real_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "es-ES,es;q=0.9"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    page_src = resp.read().decode("utf-8", errors="ignore")
+
+            m = re.search(r'<script id=\"externalDataCommentDisqus\"[^>]*>(.*?)</script>', page_src, re.DOTALL)
+            if not m:
+                return []
+
+            d_info = json.loads(m.group(1)).get("data", {})
+            page_id = d_info.get("pageIdentifier")
+            page_url = d_info.get("pageUrl") or real_url
+            if not page_id:
+                return []
+
+            t_u = urllib.parse.quote(page_url, safe="")
+            dsq_url = f"https://disqus.com/embed/comments/?base=default&f=diarioas&t_i={page_id}&t_u={t_u}&s_o=default"
+
+            dsq_req = urllib.request.Request(
+                dsq_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Referer": real_url
+                }
+            )
+            with urllib.request.urlopen(dsq_req, timeout=8) as resp:
+                d_html = resp.read().decode("utf-8", errors="ignore")
+                for scr in re.findall(r'<script[^>]*>(.*?)</script>', d_html, re.DOTALL):
+                    if '"posts":[' in scr:
+                        posts = json.loads(scr).get("response", {}).get("posts", [])
+                        comments = []
+                        for p in posts:
+                            msg = p.get("message", "")
+                            clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                            clean_text = clean_text.replace("&quot;", '"').replace("&amp;", '&').replace("&#39;", "'")
+                            user = p.get("author", {}).get("name") or "익명"
+                            date_str = p.get("createdAt") or ""
+                            if len(clean_text) >= 5:
+                                comments.append({
+                                    "user": user,
+                                    "date": date_str,
+                                    "text": clean_text
+                                })
+                        return comments
+        except Exception as e:
+            self._log_output(f">> [AS Disqus 탐색 알림] {e}\n")
+            return []
+
     def _check_article_content_match(self, title, headline, body_text, match_tokens, match_mode):
         """
         기사 제목 및 기사 원문(본문)에 키워드가 포함되어 있는지 부분 일치 검사
@@ -711,19 +884,38 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 self._ensure_window_valid()
                 target_url = art["url"]
 
+                # Google News RSS 링크인 경우 원문 기사 URL로 사전 고속 디코딩
+                if "news.google.com" in target_url:
+                    self._log_output(f"\n>> Google News RSS 링크를 실제 언론사 기사 URL로 변환 중...\n")
+                    decoded_url = self._decode_google_news_url(target_url)
+                    if decoded_url and decoded_url != target_url:
+                        target_url = decoded_url
+                        self._log_output(f">> [변환 완료] 원문 언론사 URL: {target_url}\n")
+
                 self._log_output(f"\n==================================================\n")
                 self._log_output(f"[후보 {idx}/{len(target_articles)}] 기사 확인 중: {art['title']}\n")
-                self._log_output(f">> URL: {target_url}\n")
+                self._log_output(f">> 대상 URL: {target_url}\n")
                 self._set_status(f"[{crawled_count+1}/{max_crawl_articles}] 기사 확인 중...")
 
                 try:
+                    self.driver.set_page_load_timeout(20)
                     self.driver.get(target_url)
-                    time.sleep(3)
+                    time.sleep(2)
                 except Exception as get_err:
-                    self._log_output(f">> 기사 접속 중 알림: {get_err}\n")
+                    err_msg = str(get_err)
+                    if "Timed out receiving message from renderer" in err_msg or "timeout" in err_msg.lower():
+                        self._log_output(f">> 페이지 응답 대기 시간 초과(Timeout): 브라우저 강제 정지 후 DOM 처리 진행\n")
+                        try:
+                            self.driver.execute_script("window.stop();")
+                        except Exception:
+                            pass
+                    else:
+                        self._log_output(f">> 기사 접속 알림: {err_msg[:60]}\n")
                     self._ensure_window_valid()
 
                 real_url = self.driver.current_url
+                if "news.google.com" in real_url and target_url != real_url and "news.google.com" not in target_url:
+                    real_url = target_url
 
                 # 기사 제목 및 본문(원문) 텍스트 추출
                 try:
@@ -760,6 +952,45 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
                 crawled_count += 1
 
+                # 1순위: 언론사별 전용 고속 API 추출기 시도 (DOM 렌더링/iframe 미로드 완전 우회)
+                api_comments = []
+                if "marca.com" in real_url:
+                    self._log_output(">> [Marca 전용] 공식 댓글 서비스 API(ueComments) 직접 조회 시도...\n")
+                    api_comments = self._extract_marca_comments_api(real_url)
+                elif "as.com" in real_url:
+                    self._log_output(">> [AS.com 전용] 공식 Disqus 댓글 스레드 직접 조회 시도...\n")
+                    api_comments = self._extract_as_comments_api(real_url)
+
+                if api_comments:
+                    self._log_output(f">> [성공] API를 통해 댓글 {len(api_comments)}건을 즉시 확보했습니다!\n")
+                    added = 0
+                    for c_item in api_comments:
+                        raw_text = c_item["text"]
+                        user = c_item.get("user", "팬")
+                        date_str = c_item.get("date", "")
+                        if raw_text in [c['text'] for c in self.collected_comments]:
+                            continue
+                        added += 1
+                        item_data = {
+                            "index": len(self.collected_comments) + 1,
+                            "url": real_url,
+                            "text": f"[{user}{(' ('+date_str+')') if date_str else ''}] {raw_text}"
+                        }
+                        self.collected_comments.append(item_data)
+                        self._set_count(len(self.collected_comments))
+                        display_block = (
+                            f"[{item_data['index']}] 해외 팬 반응 (출처: {real_url})\n"
+                            f"{item_data['text']}\n"
+                            f"--------------------------------------------------------------------------------\n"
+                        )
+                        self._log_output(display_block)
+                    self._log_output(f">> 이번 기사에서 유효 댓글 {added}건 추출 완료.\n")
+                    time.sleep(1.5)
+                    continue
+
+                # 2순위: API로 추출되지 않았거나 지원되지 않는 언론사의 경우 브라우저 DOM/iframe 크롤링
+                self._log_output(">> 브라우저 DOM 및 동적 댓글 iframe 탐색을 진행합니다.\n")
+
                 # 쿠키/GDPR 동의 팝업 닫기
                 self._handle_cookie_consent()
 
@@ -767,11 +998,10 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 self._trigger_open_comments_button()
 
                 # 댓글 로딩을 위한 부드러운 스크롤
-                self._smooth_scroll_to_bottom(steps=6, delay=0.8)
+                self._smooth_scroll_to_bottom(steps=5, delay=0.7)
 
                 # 언론사별 셀렉터 자동 판별
                 if "as.com" in real_url:
-                    # AS.com은 Disqus를 사용하므로 disqus iframe 및 coral/c-comments 동시 탐색
                     iframe_sel = "iframe[src*='disqus.com/embed/comments'], iframe[id*='dsq-app'], iframe[title*='Disqus'], iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios'], iframe[src*='coral'], iframe[id*='comments']"
                     comment_sel = ".post-message, .post-message p, [data-role='post-content'], .c-comments__body, .coral-comment-content, div[class*='comment-body'], [data-testid='comment-content']"
                 else:
