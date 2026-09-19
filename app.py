@@ -69,7 +69,7 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
         desc_label = ctk.CTkLabel(
             header_frame,
-            text="Google News RSS 무차단 기사 탐색 + undetected-chromedriver 동적 iframe 댓글(Coral, Livefyre, OpenWeb) 정밀 수집",
+            text="Google News RSS 무차단 기사 탐색 + Marca(Coral) & AS.com(Disqus) 동적 댓글 정밀 수집",
             font=ctk.CTkFont(size=11),
             text_color="#9ca3af"
         )
@@ -318,12 +318,12 @@ class SportsCommentCrawlerGUI(_BaseClass):
         self._set_status("Marca 프리셋(셀렉터)이 적용되었습니다.")
 
     def _set_preset_as(self):
-        """AS.com 전용 프리셋 주입"""
+        """AS.com 전용 프리셋 주입 (Disqus 기반)"""
         self.entry_iframe.delete(0, "end")
-        self.entry_iframe.insert(0, "iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios']")
+        self.entry_iframe.insert(0, "iframe[src*='disqus.com/embed/comments'], iframe[id*='dsq-app'], iframe[title*='Disqus'], iframe[id*='c-comments'], iframe[src*='coral']")
         self.entry_comment_css.delete(0, "end")
-        self.entry_comment_css.insert(0, ".c-comments__body, .coral-comment-content, div[class*='comment-body']")
-        self._set_status("AS.com 프리셋(셀렉터)이 적용되었습니다.")
+        self.entry_comment_css.insert(0, ".post-message, .post-message p, [data-role='post-content'], .c-comments__body, div[class*='comment-body']")
+        self._set_status("AS.com 프리셋(Disqus 최적화)이 적용되었습니다.")
 
     def _set_status(self, text, color="#38bdf8"):
         """UI 스레드에서 상태 라벨 갱신"""
@@ -530,7 +530,79 @@ class SportsCommentCrawlerGUI(_BaseClass):
         return is_matched, sorted(list(matched_in_title)), sorted(list(matched_in_body))
 
     def _trigger_open_comments_button(self):
-        """Marca 및 AS.com의 댓글 펼치기/보기 버튼 자동 클릭"""
+        """Marca 및 AS.com의 댓글 펼치기/보기 버튼 자동 클릭 및 댓글 영역 활성화"""
+        # 1. AS.com 전용 댓글 사이드 서랍/패널 및 Disqus 트리거 버튼 우선 탐색
+        as_specific_selectors = [
+            "button.a_sb_com",
+            ".a_sb_bt.a_sb_com",
+            "aside.a_com button.a_com_btn",
+            ".a_com_nav button",
+            "button[aria-label='Ver Comentarios']",
+            "button[aria-label='Comentar']",
+            ".w_sb_com",
+            "aside.a_com .a_com_btn",
+            ".mo-comments"
+        ]
+        for sel in as_specific_selectors:
+            try:
+                btns = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                for b in btns:
+                    self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", b)
+                    time.sleep(0.3)
+                    self.driver.execute_script("arguments[0].click();", b)
+                    self._log_output(f">> [AS 댓글 열기] '{sel}' 요소 클릭 트리거 실행\n")
+                    time.sleep(1.0)
+                    break
+            except Exception:
+                continue
+
+        # 2. AS.com 댓글 모달 활성화 CSS 클래스 강제 주입 (body에 modal 클래스 추가)
+        try:
+            self.driver.execute_script("""
+                document.body.classList.add('has-modal-comments', 'is-open-comments', 'mo-comments-open');
+                var mo = document.querySelector('.mo.mo-comments');
+                if (mo) {
+                    mo.style.display = 'block';
+                    mo.style.visibility = 'visible';
+                }
+                var dsqThread = document.querySelector('#disqus_thread');
+                if (dsqThread) {
+                    dsqThread.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+            """)
+        except Exception:
+            pass
+
+        # 3. 만약 AS.com에서 Disqus가 지연 로딩되지 않고 있다면 직접 Disqus embed 스크립트 실행 트리거
+        try:
+            self.driver.execute_script("""
+                if (!document.querySelector("iframe[src*='disqus.com/embed/comments']")) {
+                    var scriptData = document.querySelector('#externalDataCommentDisqus');
+                    if (scriptData) {
+                        try {
+                            var data = JSON.parse(scriptData.textContent || scriptData.innerText).data;
+                            if (window.disqus_config === undefined && data.pageUrl) {
+                                window.disqus_config = function () {
+                                    this.page.url = data.pageUrl;
+                                    this.page.identifier = data.pageIdentifier;
+                                    this.page.title = data.pageTitle;
+                                };
+                            }
+                            var embedUrl = data.embedScriptUrl || 'https://diarioas.disqus.com/embed.js';
+                            if (!document.querySelector("script[src*='disqus.com/embed.js']")) {
+                                var s = document.createElement('script');
+                                s.src = embedUrl;
+                                s.setAttribute('data-timestamp', +new Date());
+                                (document.head || document.body).appendChild(s);
+                            }
+                        } catch(e) {}
+                    }
+                }
+            """)
+        except Exception:
+            pass
+
+        # 4. 일반적인 언론사(Marca 등) 댓글 열기 버튼 클릭
         btn_selectors = [
             "button[id*='btn-comments']",
             "button[class*='comments']",
@@ -548,10 +620,10 @@ class SportsCommentCrawlerGUI(_BaseClass):
                 for b in btns:
                     if b.is_displayed():
                         self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", b)
-                        time.sleep(0.4)
+                        time.sleep(0.3)
                         self.driver.execute_script("arguments[0].click();", b)
                         self._log_output(f">> [댓글 펼치기] '{b.text or sel}' 버튼 클릭\n")
-                        time.sleep(1.2)
+                        time.sleep(1.0)
                         return True
             except Exception:
                 continue
@@ -699,8 +771,9 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
                 # 언론사별 셀렉터 자동 판별
                 if "as.com" in real_url:
-                    iframe_sel = "iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios'], iframe[src*='coral'], iframe[id*='comments']"
-                    comment_sel = ".c-comments__body, .coral-comment-content, div[class*='comment-body'], [data-testid='comment-content']"
+                    # AS.com은 Disqus를 사용하므로 disqus iframe 및 coral/c-comments 동시 탐색
+                    iframe_sel = "iframe[src*='disqus.com/embed/comments'], iframe[id*='dsq-app'], iframe[title*='Disqus'], iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios'], iframe[src*='coral'], iframe[id*='comments']"
+                    comment_sel = ".post-message, .post-message p, [data-role='post-content'], .c-comments__body, .coral-comment-content, div[class*='comment-body'], [data-testid='comment-content']"
                 else:
                     iframe_sel = "iframe[id*='ue-comments-iframe'], iframe[src*='coral'], iframe[title*='comentarios'], iframe[id*='coral'], iframe[id*='comments']"
                     comment_sel = ".ue-c-article__comment-content, .coral-comment-content, [data-testid='comment-content'], div[class*='comment-body']"
@@ -778,17 +851,39 @@ class SportsCommentCrawlerGUI(_BaseClass):
         except Exception:
             self._ensure_window_valid()
 
+        # Disqus 또는 댓글 iframe이 비동기로 로드될 수 있으므로 최대 8초간 폴링 대기
         selectors = [s.strip() for s in iframe_selector_str.split(",") if s.strip()]
-        for sel in selectors:
-            try:
-                wait = WebDriverWait(self.driver, 4)
-                iframe_element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, sel)))
-                self.driver.switch_to.frame(iframe_element)
-                self._log_output(f">> [성공] 댓글 iframe 진입 완료: {sel}\n")
-                time.sleep(2)
-                return True
-            except Exception:
-                continue
+        for attempt in range(4):
+            for sel in selectors:
+                try:
+                    elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems:
+                        iframe_element = elems[0]
+                        self.driver.switch_to.frame(iframe_element)
+                        self._log_output(f">> [성공] 댓글 iframe 진입 완료: {sel}\n")
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+            time.sleep(1.2)
+
+        # 전체 iframe 목록을 검사하여 src나 title, id에 disqus 또는 comment가 포함된 프레임이 있는지 동적 탐색
+        try:
+            all_iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+            for idx, ifr in enumerate(all_iframes):
+                try:
+                    src = (ifr.get_attribute("src") or "").lower()
+                    title = (ifr.get_attribute("title") or "").lower()
+                    ifr_id = (ifr.get_attribute("id") or "").lower()
+                    if any(k in src or k in title or k in ifr_id for k in ["disqus", "coral", "comment", "comentario"]):
+                        self.driver.switch_to.frame(ifr)
+                        self._log_output(f">> [자동 감지] 댓글 iframe 탐지 및 전환 성공 (src: {src[:50]})\n")
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
 
         self._log_output(">> 지정된 iframe이 없거나 메인 페이지 DOM에 댓글이 직접 배치되어 있습니다.\n")
         return False
@@ -811,12 +906,18 @@ class SportsCommentCrawlerGUI(_BaseClass):
 
         # 만약 명시적 셀렉터로 못 찾은 경우, 일반적인 댓글 컨테이너 대체 탐색
         fallback_selectors = [
+            ".post-message",
+            ".post-message p",
+            "[data-role='post-content']",
+            ".comment__text",
             "p[class*='comment']",
             "div[class*='comment__text']",
             ".coral-comment-content",
             "div[data-testid='comment-content']",
             ".ue-c-article__comment-content",
-            ".c-comments__body"
+            ".c-comments__body",
+            ".post-content",
+            ".comment-text"
         ]
         if not found_elements:
             for fb in fallback_selectors:
