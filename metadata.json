@@ -1,0 +1,8 @@
+{
+  "name": "News",
+  "description": "Clean, modern news reader and aggregator with live story feeds, categories, search, bookmarking, and reading time estimation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
