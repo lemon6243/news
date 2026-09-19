@@ -11,8 +11,13 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import threading
-from tkinter import messagebox, filedialog
-import customtkinter as ctk
+try:
+    from tkinter import messagebox, filedialog
+    import customtkinter as ctk
+except ImportError:
+    ctk = None
+    messagebox = None
+    filedialog = None
 
 # Selenium 및 undetected-chromedriver 모듈
 try:
@@ -24,17 +29,20 @@ except ImportError:
     pass
 
 
-class SportsCommentCrawlerGUI(ctk.CTk):
+_BaseClass = ctk.CTk if ctk is not None else object
+
+
+class SportsCommentCrawlerGUI(_BaseClass):
     def __init__(self):
-        super().__init__()
+        if ctk is not None:
+            super().__init__()
+            # 1. 윈도우 기본 설정 (다크 모드 및 기본 테마)
+            ctk.set_appearance_mode("dark")
+            ctk.set_default_color_theme("blue")
 
-        # 1. 윈도우 기본 설정 (다크 모드 및 기본 테마)
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-
-        self.title("해외 스포츠 미디어 댓글 크롤러 (Marca & AS.com 반응 분석기)")
-        self.geometry("960, 800")
-        self.minsize(800, 640)
+            self.title("해외 스포츠 미디어 댓글 크롤러 (Marca & AS.com 반응 분석기)")
+            self.geometry("960, 820")
+            self.minsize(800, 640)
 
         # 크롤링 제어 플래그 및 드라이버 인스턴스
         self.is_crawling = False
@@ -42,7 +50,8 @@ class SportsCommentCrawlerGUI(ctk.CTk):
         self.collected_comments = []
 
         # UI 위젯 빌드
-        self._build_ui()
+        if ctk is not None:
+            self._build_ui()
 
     def _build_ui(self):
         """메인 GUI 레이아웃 생성"""
@@ -128,6 +137,40 @@ class SportsCommentCrawlerGUI(ctk.CTk):
         )
         self.media_choice.set("스페인 전체 스포츠지 (Marca + AS)")
         self.media_choice.grid(row=4, column=0, sticky="w", padx=10, pady=(0, 8))
+
+        # 매칭 기준 및 수집 기사 수 설정
+        kw_opts_frame = ctk.CTkFrame(tab_keyword, fg_color="transparent")
+        kw_opts_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 6))
+
+        kw_mode_lbl = ctk.CTkLabel(kw_opts_frame, text="기사 매칭 기준:", font=ctk.CTkFont(size=12, weight="bold"))
+        kw_mode_lbl.pack(side="left", padx=(0, 6))
+
+        self.match_mode = ctk.CTkSegmentedButton(
+            kw_opts_frame,
+            values=["부분 일치 (제목/본문에 단어 포함 시 수집)", "전체 일치"],
+            width=320
+        )
+        self.match_mode.set("부분 일치 (제목/본문에 단어 포함 시 수집)")
+        self.match_mode.pack(side="left", padx=(0, 16))
+
+        kw_limit_lbl = ctk.CTkLabel(kw_opts_frame, text="수집 기사 수:", font=ctk.CTkFont(size=12, weight="bold"))
+        kw_limit_lbl.pack(side="left", padx=(0, 6))
+
+        self.article_limit = ctk.CTkSegmentedButton(
+            kw_opts_frame,
+            values=["2개", "3개", "5개"],
+            width=150
+        )
+        self.article_limit.set("3개")
+        self.article_limit.pack(side="left")
+
+        kw_info_label = ctk.CTkLabel(
+            tab_keyword,
+            text="* [부분 일치 기능] 완벽히 일치하지 않더라도 기사 제목이나 원문(본문)에 키워드가 포함되어 있으면 자동으로 댓글을 추출합니다.",
+            text_color="#38bdf8",
+            font=ctk.CTkFont(size=11)
+        )
+        kw_info_label.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 6))
 
         # -------------------------------------------------------------
         # 탭 2: 단일 기사 URL 직접 수집
@@ -352,84 +395,167 @@ class SportsCommentCrawlerGUI(ctk.CTk):
                 pass
         return False
 
-    def _normalize_korean_to_football_query(self, raw_kw):
-        """한국어 축구 키워드를 스페인 언론사 검색에 맞게 스마트하게 영문/스페인어 키워드로 변환/보정"""
-        kw = raw_kw.strip()
-        
-        # 대표적인 한국 선수 및 라리가/유럽 팀 사전
-        mapping = {
-            "이강인": "Lee Kang-in",
-            "강인": "Kang-in",
-            "손흥민": "Son Heung-min",
-            "김민재": "Kim Min-jae",
-            "황희찬": "Hwang Hee-chan",
-            "아틀레티코마드리드": "Atletico Madrid",
-            "아틀레티코": "Atletico",
-            "아틸레티코마드리드": "Atletico Madrid",
-            "아틸레티코": "Atletico",
-            "오사수나": "Osasuna",
-            "마요르카": "Mallorca",
-            "레알마드리드": "Real Madrid",
-            "바르셀로나": "Barcelona",
-            "파리생제르맹": "PSG",
-            "파리": "PSG",
-            "토트넘": "Tottenham",
-            "바이에른뮌헨": "Bayern",
-        }
-
-        # 매핑 치환
-        has_korean = bool(re.search(r'[ㄱ-ㅎㅏ-ㅣ가-힣]', kw))
-        if has_korean:
-            for kor, eng in mapping.items():
-                kw = re.sub(kor, eng, kw, flags=re.IGNORECASE)
-
-        # 만약 여전히 한글이 남아있다면 공백 기준 정리
-        kw = re.sub(r'[^\w\s\-\.]', ' ', kw)
-        kw = re.sub(r'\s+', ' ', kw).strip()
-        return kw
-
-    def _fetch_articles_via_rss(self, search_term, media):
+    def _analyze_query_and_build_tokens(self, raw_input):
         """
-        [핵심 개선]
-        일반 구글 웹 검색창에 접속하면 Cloudflare/Google Bot 캡차가 걸려 윈도우가 강제 닫힘 에러가 발생합니다.
-        따라서 파이썬 표준 라이브러리를 통해 Google News RSS를 0.3초 만에 봇 감지 없이 쿼리하여
-        Marca/AS.com의 최신 실제 기사 URL 및 제목을 안전하게 획득합니다.
+        사용자 입력어로부터:
+        1. Google News RSS 다각도 검색 쿼리 리스트 생성
+        2. 기사 제목 및 본문(원문)에 포함되었는지 검사할 부분 일치 토큰 세트 생성
         """
-        self._set_status(f"기사 목록 탐색 중 (RSS 모드: {search_term})...")
-        
+        entity_map = [
+            ("이강인", "player", "Kang-in", ["kang-in", "kang in", "lee kang-in", "lee kang in", "kangin"]),
+            ("강인", "player", "Kang-in", ["kang-in", "kang in"]),
+            ("손흥민", "player", "Son Heung-min", ["son", "heung-min", "sonny"]),
+            ("김민재", "player", "Kim Min-jae", ["kim min-jae", "min-jae", "minjae"]),
+            ("황희찬", "player", "Hwang Hee-chan", ["hwang", "hee-chan"]),
+            ("아틀레티코마드리드", "team", "Atletico Madrid", ["atletico", "atlético", "atleti", "colchoneros", "colchonero"]),
+            ("아틸레티코마드리드", "team", "Atletico Madrid", ["atletico", "atlético", "atleti"]),
+            ("아틀레티코", "team", "Atletico", ["atletico", "atlético", "atleti"]),
+            ("아틸레티코", "team", "Atletico", ["atletico", "atlético", "atleti"]),
+            ("오사수나", "team", "Osasuna", ["osasuna", "rojillos", "rojillo"]),
+            ("레알마드리드", "team", "Real Madrid", ["real madrid", "madrid", "merengue"]),
+            ("바르셀로나", "team", "Barcelona", ["barcelona", "barca", "barça", "culer"]),
+            ("파리생제르맹", "team", "PSG", ["psg", "paris"]),
+            ("마요르카", "team", "Mallorca", ["mallorca", "bermellon"]),
+            ("발렌시아", "team", "Valencia", ["valencia", "che"]),
+            ("토트넘", "team", "Tottenham", ["tottenham", "spurs"]),
+            ("바이에른뮌헨", "team", "Bayern", ["bayern", "munich", "münchen"]),
+        ]
+
+        match_tokens = set()
+        for w in re.findall(r'[\w\-]+', raw_input.lower()):
+            if len(w) >= 2:
+                match_tokens.add(w)
+
+        found_players = []
+        found_teams = []
+        temp_text = raw_input
+
+        for kor, cat, eng, syns in entity_map:
+            if kor in temp_text:
+                match_tokens.add(kor.lower())
+                match_tokens.add(eng.lower())
+                for s in syns:
+                    match_tokens.add(s.lower())
+                if cat == "player" and eng not in found_players:
+                    found_players.append(eng)
+                elif cat == "team" and eng not in found_teams:
+                    found_teams.append(eng)
+                temp_text = temp_text.replace(kor, " ")
+
+        queries = []
+        if found_players and found_teams:
+            queries.append(f"{found_players[0]} {' '.join(found_teams)}")
+            for t in found_teams:
+                queries.append(f"{found_players[0]} {t}")
+            if len(found_teams) >= 2:
+                queries.append(f"{found_teams[0]} {found_teams[1]}")
+            queries.append(f"{found_players[0]}")
+        elif found_players:
+            queries.append(f"{found_players[0]}")
+        elif found_teams:
+            queries.append(" ".join(found_teams))
+        else:
+            queries.append(raw_input)
+
+        return queries, match_tokens
+
+    def _fetch_candidate_articles(self, search_queries, media, pool_limit=10):
+        """다양한 검색 쿼리 조합으로 Google News RSS에서 중복 없이 후보 기사 추출"""
         site_filter = "site:marca.com OR site:as.com"
         if "Marca" in media:
             site_filter = "site:marca.com"
         elif "AS.com" in media:
             site_filter = "site:as.com"
 
-        full_query = f"{search_term} {site_filter}"
-        encoded_query = urllib.parse.quote_plus(full_query)
-        rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es&gl=ES&ceid=ES:es"
+        candidates = []
+        seen_urls = set()
 
-        self._log_output(f">> [RSS 질의] {full_query}\n")
-        req = urllib.request.Request(
-            rss_url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        )
+        for q in search_queries:
+            if not self.is_crawling:
+                break
+            full_query = f"{q} {site_filter}"
+            encoded_query = urllib.parse.quote_plus(full_query)
+            rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es&gl=ES&ceid=ES:es"
 
-        articles = []
-        try:
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-                root = ET.fromstring(xml_data)
-                items = root.findall(".//item")
-                for it in items[:6]:
-                    title_elem = it.find("title")
-                    link_elem = it.find("link")
-                    if title_elem is not None and link_elem is not None:
-                        t = title_elem.text or "제목 없음"
-                        l = link_elem.text or ""
-                        articles.append({"title": t, "url": l})
-        except Exception as e:
-            self._log_output(f">> RSS 조회 중 안내: {e}\n")
+            self._log_output(f">> [RSS 탐색] {full_query}\n")
+            req = urllib.request.Request(
+                rss_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    xml_data = response.read()
+                    root = ET.fromstring(xml_data)
+                    items = root.findall(".//item")
+                    for it in items[:6]:
+                        title_elem = it.find("title")
+                        link_elem = it.find("link")
+                        if title_elem is not None and link_elem is not None:
+                            t = (title_elem.text or "제목 없음").strip()
+                            l = (link_elem.text or "").strip()
+                            if l and l not in seen_urls:
+                                seen_urls.add(l)
+                                candidates.append({"title": t, "url": l})
+            except Exception as e:
+                self._log_output(f">> RSS 응답 안내 ({q}): {e}\n")
 
-        return articles
+            if len(candidates) >= pool_limit:
+                break
+
+        return candidates[:pool_limit]
+
+    def _check_article_content_match(self, title, headline, body_text, match_tokens, match_mode):
+        """
+        기사 제목 및 기사 원문(본문)에 키워드가 포함되어 있는지 부분 일치 검사
+        사용자가 원하는 키워드가 하나라도 포함되면 True 반환 (부분 일치 모드)
+        """
+        title_lower = (title + " " + headline).lower()
+        body_lower = body_text.lower()
+
+        matched_in_title = set()
+        matched_in_body = set()
+
+        for tok in match_tokens:
+            if tok in title_lower:
+                matched_in_title.add(tok)
+            if tok in body_lower:
+                matched_in_body.add(tok)
+
+        if "전체 일치" in match_mode:
+            all_found = all((tok in title_lower or tok in body_lower) for tok in match_tokens if len(tok) > 2)
+            return all_found, sorted(list(matched_in_title)), sorted(list(matched_in_body))
+
+        # 기본: 부분 일치 모드 (제목이나 본문 중 어느 하나라도 키워드가 포함되어 있으면 일치)
+        is_matched = bool(matched_in_title or matched_in_body)
+        return is_matched, sorted(list(matched_in_title)), sorted(list(matched_in_body))
+
+    def _trigger_open_comments_button(self):
+        """Marca 및 AS.com의 댓글 펼치기/보기 버튼 자동 클릭"""
+        btn_selectors = [
+            "button[id*='btn-comments']",
+            "button[class*='comments']",
+            "button[class*='comentarios']",
+            "a[href*='#comentarios']",
+            "button[data-testid='comment-button']",
+            ".ue-c-article__comments-button",
+            ".c-comments__toggle",
+            "button[aria-label*='comentario']",
+            "button[aria-label*='Comentarios']"
+        ]
+        for sel in btn_selectors:
+            try:
+                btns = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                for b in btns:
+                    if b.is_displayed():
+                        self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", b)
+                        time.sleep(0.4)
+                        self.driver.execute_script("arguments[0].click();", b)
+                        self._log_output(f">> [댓글 펼치기] '{b.text or sel}' 버튼 클릭\n")
+                        time.sleep(1.2)
+                        return True
+            except Exception:
+                continue
+        return False
 
     def _run_crawler_worker(self):
         """백그라운드에서 동작하는 실제 크롤러 본체"""
@@ -437,6 +563,9 @@ class SportsCommentCrawlerGUI(ctk.CTk):
 
         try:
             target_articles = []
+            match_tokens = set()
+            match_mode = "부분 일치"
+            max_crawl_articles = 3
 
             # 1단계: 크롤링 대상 기사 목록 결정
             if "단일 기사" in current_tab:
@@ -445,31 +574,35 @@ class SportsCommentCrawlerGUI(ctk.CTk):
             else:
                 raw_kw = self.entry_keyword.get().strip()
                 selected_media = self.media_choice.get()
-                
-                # 한국어 -> 영문/스페인어 스마트 변환
-                search_kw = self._normalize_korean_to_football_query(raw_kw)
-                self._log_output(f">> 검색 키워드 분석: '{raw_kw}' -> '{search_kw}'\n")
+                match_mode = self.match_mode.get()
+                limit_str = self.article_limit.get()
+                try:
+                    max_crawl_articles = int(limit_str.replace("개", "").strip())
+                except Exception:
+                    max_crawl_articles = 3
 
-                # Google News RSS 피드로 봇 감지 없이 기사 리스트 획득
-                rss_items = self._fetch_articles_via_rss(search_kw, selected_media)
-                
-                # 만약 결과가 적다면 'Lee Kang-in Atletico' 등 핵심 축구어로 재시도
-                if not rss_items and ("Kang-in" in search_kw or "이강인" in raw_kw):
-                    self._log_output(">> 키워드 범위를 넓혀 재검색합니다 (Lee Kang-in Atletico)...\n")
-                    rss_items = self._fetch_articles_via_rss("Lee Kang-in Atletico", selected_media)
+                # 다각도 쿼리 및 부분 일치 토큰 추출
+                search_queries, match_tokens = self._analyze_query_and_build_tokens(raw_kw)
+                self._log_output(f"\n[키워드 분석 완료]\n"
+                                 f"• 입력 키워드: '{raw_kw}'\n"
+                                 f"• 매칭 모드: {match_mode}\n"
+                                 f"• 본문/제목 탐색 토큰: {', '.join(sorted(list(match_tokens))[:10])} 등 총 {len(match_tokens)}개\n")
 
-                if not rss_items:
-                    # 기본적으로 접속할 수 있는 Marca / AS 축구 최신 기사 안내
+                # Google News RSS 피드로 후보 기사 풀 추출
+                candidate_pool = self._fetch_candidate_articles(search_queries, selected_media, pool_limit=12)
+
+                if not candidate_pool:
                     self._log_output(">> 직접 일치하는 RSS 기사를 찾지 못하여 Marca 축구 섹션으로 직접 탐색합니다.\n")
-                    target_articles.append({
-                        "title": "Marca 축구 최신 메인 기사",
+                    candidate_pool.append({
+                        "title": "Marca 축구 메인 최신 기사",
                         "url": "https://www.marca.com/futbol.html"
                     })
-                else:
-                    self._log_output(f"\n[발견된 관련 기사 {len(rss_items)}건]:\n")
-                    for i, a in enumerate(rss_items, 1):
-                        self._log_output(f"  {i}. {a['title']}\n")
-                    target_articles = rss_items[:3]  # 상위 3개 기사 집중 분석
+
+                self._log_output(f"\n[후보 기사 총 {len(candidate_pool)}건 확보 - 순차적 본문/제목 매칭 검사 시작]:\n")
+                for i, a in enumerate(candidate_pool, 1):
+                    self._log_output(f"  {i}. {a['title']}\n")
+
+                target_articles = candidate_pool
 
             if not self.is_crawling:
                 return
@@ -485,27 +618,31 @@ class SportsCommentCrawlerGUI(ctk.CTk):
             options.add_argument("--window-size=1280,920")
             options.add_argument("--lang=es-ES")
 
-            # 핵심: use_subprocess=True를 지정해야 Chrome 130~150+ 버전에서 'target window already closed' 에러 방지
             try:
                 self.driver = uc.Chrome(options=options, use_subprocess=True)
             except Exception as uc_err:
-                self._log_output(f">> undetected_chromedriver 기본 옵션 재조정: {uc_err}\n")
+                self._log_output(f">> undetected_chromedriver 옵션 재조정: {uc_err}\n")
                 self.driver = uc.Chrome(options=options)
 
             self.driver.set_page_load_timeout(30)
 
-            # 3단계: 각 기사 순차적 댓글 크롤링
+            # 3단계: 각 기사 접속 -> 제목 & 본문(원문) 부분 일치 검사 -> 댓글 추출
+            crawled_count = 0
+
             for idx, art in enumerate(target_articles, 1):
                 if not self.is_crawling:
+                    break
+                if crawled_count >= max_crawl_articles and "단일 기사" not in current_tab:
+                    self._log_output(f"\n>> 설정한 최대 수집 기사 수({max_crawl_articles}개)에 도달하여 수집을 마칩니다.\n")
                     break
 
                 self._ensure_window_valid()
                 target_url = art["url"]
 
                 self._log_output(f"\n==================================================\n")
-                self._log_output(f"[{idx}/{len(target_articles)}] 기사 댓글 파싱: {art['title']}\n")
+                self._log_output(f"[후보 {idx}/{len(target_articles)}] 기사 확인 중: {art['title']}\n")
                 self._log_output(f">> URL: {target_url}\n")
-                self._set_status(f"[{idx}/{len(target_articles)}] 기사 접속 중...")
+                self._set_status(f"[{crawled_count+1}/{max_crawl_articles}] 기사 확인 중...")
 
                 try:
                     self.driver.get(target_url)
@@ -514,25 +651,61 @@ class SportsCommentCrawlerGUI(ctk.CTk):
                     self._log_output(f">> 기사 접속 중 알림: {get_err}\n")
                     self._ensure_window_valid()
 
-                # 실제 기사 리다이렉트 URL 확인 (구글 뉴스 RSS 링크인 경우 실제 언론사로 리다이렉트됨)
                 real_url = self.driver.current_url
-                self._log_output(f">> 실제 페이지 도달: {real_url}\n")
+
+                # 기사 제목 및 본문(원문) 텍스트 추출
+                try:
+                    page_title = self.driver.title or ""
+                except Exception:
+                    page_title = ""
+
+                try:
+                    h1_elem = self.driver.find_element(By.TAG_NAME, "h1")
+                    headline = h1_elem.text or ""
+                except Exception:
+                    headline = ""
+
+                try:
+                    body_elem = self.driver.find_element(By.CSS_SELECTOR, ".ue-c-article__body, .c-detail__body, article, main, body")
+                    body_text = body_elem.text or ""
+                except Exception:
+                    body_text = ""
+
+                # 키워드 부분 일치 검사 (단일 기사 탭이 아닐 경우)
+                if "단일 기사" not in current_tab and match_tokens:
+                    is_matched, in_title, in_body = self._check_article_content_match(
+                        page_title, headline, body_text, match_tokens, match_mode
+                    )
+
+                    if not is_matched:
+                        self._log_output(f">> [일치 없음] 기사 제목이나 본문에 키워드가 포함되어 있지 않아 건너뜁니다.\n")
+                        continue
+
+                    self._log_output(f">> [매칭 성공!] 기사에서 검색 키워드가 감지되었습니다.\n"
+                                     f"   • 제목 감지: {', '.join(in_title) if in_title else '없음'}\n"
+                                     f"   • 원문 본문 감지: {', '.join(in_body) if in_body else '없음'}\n"
+                                     f"   -> 해당 기사의 해외 팬 댓글 수집을 시작합니다!\n")
+
+                crawled_count += 1
 
                 # 쿠키/GDPR 동의 팝업 닫기
                 self._handle_cookie_consent()
+
+                # 댓글 펼치기 버튼 클릭 시도 (Marca/AS 공통)
+                self._trigger_open_comments_button()
 
                 # 댓글 로딩을 위한 부드러운 스크롤
                 self._smooth_scroll_to_bottom(steps=6, delay=0.8)
 
                 # 언론사별 셀렉터 자동 판별
                 if "as.com" in real_url:
-                    iframe_sel = "iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios'], iframe[src*='coral']"
+                    iframe_sel = "iframe[id*='c-comments'], iframe[id*='coral'], iframe[title*='comentarios'], iframe[src*='coral'], iframe[id*='comments']"
                     comment_sel = ".c-comments__body, .coral-comment-content, div[class*='comment-body'], [data-testid='comment-content']"
                 else:
-                    iframe_sel = "iframe[id*='ue-comments-iframe'], iframe[src*='coral'], iframe[title*='comentarios'], iframe[id*='coral']"
-                    comment_sel = ".ue-c-article__comment-content, .coral-comment-content, [data-testid='comment-content']"
+                    iframe_sel = "iframe[id*='ue-comments-iframe'], iframe[src*='coral'], iframe[title*='comentarios'], iframe[id*='coral'], iframe[id*='comments']"
+                    comment_sel = ".ue-c-article__comment-content, .coral-comment-content, [data-testid='comment-content'], div[class*='comment-body']"
 
-                # 사용자가 '단일 기사' 탭에서 직접 입력한 값이 있으면 그 값 우선
+                # 단일 기사 탭에서 직접 입력한 사용자 지정값 우선 적용
                 if "단일 기사" in current_tab:
                     custom_iframe = self.entry_iframe.get().strip()
                     custom_comment = self.entry_comment_css.get().strip()
@@ -541,7 +714,7 @@ class SportsCommentCrawlerGUI(ctk.CTk):
                     if custom_comment:
                         comment_sel = custom_comment
 
-                # iframe 진입 및 댓글 추출
+                # iframe 진입 및 댓글 추출 (iframe 실패 시 메인 본문 댓글도 함께 파싱)
                 self._switch_to_comment_iframe(iframe_sel)
                 self._extract_comments(comment_sel, article_url=real_url)
                 time.sleep(2)
@@ -637,13 +810,15 @@ class SportsCommentCrawlerGUI(ctk.CTk):
                 continue
 
         # 만약 명시적 셀렉터로 못 찾은 경우, 일반적인 댓글 컨테이너 대체 탐색
+        fallback_selectors = [
+            "p[class*='comment']",
+            "div[class*='comment__text']",
+            ".coral-comment-content",
+            "div[data-testid='comment-content']",
+            ".ue-c-article__comment-content",
+            ".c-comments__body"
+        ]
         if not found_elements:
-            fallback_selectors = [
-                "p[class*='comment']",
-                "div[class*='comment__text']",
-                ".coral-comment-content",
-                "div[data-testid='comment-content']"
-            ]
             for fb in fallback_selectors:
                 try:
                     elems = self.driver.find_elements(By.CSS_SELECTOR, fb)
@@ -653,6 +828,19 @@ class SportsCommentCrawlerGUI(ctk.CTk):
                         break
                 except Exception:
                     continue
+
+        # 만약 iframe 내부에서 찾지 못했다면 메인 DOM으로 복귀하여 재탐색
+        if not found_elements:
+            try:
+                self.driver.switch_to.default_content()
+                for sel in selectors + fallback_selectors:
+                    elems = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems:
+                        found_elements = elems
+                        self._log_output(f">> [메인 DOM] 댓글 요소 {len(elems)}개 발견 ({sel})\n")
+                        break
+            except Exception:
+                pass
 
         if not found_elements:
             self._log_output(">> 이 기사에는 등록된 댓글이 없거나 아직 작성되지 않았습니다.\n")
